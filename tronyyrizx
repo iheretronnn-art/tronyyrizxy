@@ -1,0 +1,252 @@
+local Players, RunService, Lighting, UIS = game:GetService("Players"), game:GetService("RunService"), game:GetService("Lighting"), game:GetService("UserInputService")
+local LP, Cam = Players.LocalPlayer, workspace.CurrentCamera
+local KEY, DEF_SPD, BST_SPD, FLY_SPD = "whoyyrizx@pro#2026", 16, 45, 50
+
+local S = { airSpeed = false, fly = false, antiKill = false, esp = false, killAll = false, aimlock = false }
+local SKIES = {
+	{ "Default", "rbxassetid://159454299" }, { "Night Stars", "rbxassetid://12064107" }, { "Blood Moon", "rbxassetid://401664839" },
+	{ "Purple Nebula", "rbxassetid://159454287" }, { "Sunset Glow", "rbxassetid://323493360" }, { "Cyber Grid", "rbxassetid://183513768" },
+	{ "Deep Space", "rbxassetid://149397692" }, { "Cloudy Sky", "rbxassetid://252760981" }, { "Arctic Aurora", "rbxassetid://12064152" },
+	{ "Crimson Void", "rbxassetid://144933338" }, { "Golden Hour", "rbxassetid://271042516" }, { "Stormy Dusk", "rbxassetid://159454275" }
+}
+local skyIdx, espMap, kaTimer = 1, {}, 0
+
+local function char(p) return p and p.Character end
+local function hum(p) local c = char(p) return c and c:FindFirstChildOfClass("Humanoid") end
+local function root(p) local c = char(p) return c and c:FindFirstChild("HumanoidRootPart") end
+
+local function getRole(p)
+	local bp, c = p and p:FindFirstChild("Backpack"), char(p)
+	local has(n) return (bp and bp:FindFirstChild(n)) or (c and c:FindFirstChild(n)) end
+	if has("Knife") then return "Murderer", Color3.fromRGB(235, 65, 65) end
+	if has("Gun") or has("Revolver") then return "Sheriff", Color3.fromRGB(70, 150, 255) end
+	local r = string.lower(tostring(p and p:GetAttribute("Role") or (c and c:GetAttribute("Role")) or ""))
+	if r:find("murd") then return "Murderer", Color3.fromRGB(235, 65, 65) end
+	if r:find("sher") or r:find("hero") then return "Sheriff", Color3.fromRGB(70, 150, 255) end
+	return "Innocent", Color3.fromRGB(255, 230, 80)
+end
+
+local function setSky(id)
+	local sky = Lighting:FindFirstChildOfClass("Sky") or Instance.new("Sky", Lighting)
+	for _, prop in ipairs({ "SkyboxBk", "SkyboxDn", "SkyboxFt", "SkyboxLf", "SkyboxRt", "SkyboxUp" }) do sky[prop] = id end
+end
+
+-- [[ GUI (BLACK & WHITE, NO GLOW) ]]
+local gui = Instance.new("ScreenGui", LP:WaitForChild("PlayerGui"))
+gui.ResetOnSpawn = false
+
+local function style(obj, bg, fg, sz)
+	obj.BackgroundColor3, obj.TextColor3, obj.Font, obj.TextSize = bg, fg, Enum.Font.GothamBold, sz or 14
+	obj.BorderColor3, obj.BorderSizePixel = Color3.fromRGB(255, 255, 255), 1
+end
+
+local keyFrame = Instance.new("Frame", gui)
+keyFrame.Size, keyFrame.Position, keyFrame.Active, keyFrame.Draggable = UDim2.new(0, 320, 0, 185), UDim2.new(0.5, -160, 0.5, -92), true, true
+keyFrame.BackgroundColor3, keyFrame.BorderColor3, keyFrame.BorderSizePixel = Color3.fromRGB(15, 15, 15), Color3.fromRGB(255, 255, 255), 2
+
+local kTitle = Instance.new("TextLabel", keyFrame)
+kTitle.Size, kTitle.Position, kTitle.BackgroundTransparency, kTitle.Text = UDim2.new(1, -20, 0, 40), UDim2.new(0, 10, 0, 10), 1, "ใส่รหัสก่อนนะค้าบเตงง"
+kTitle.TextColor3, kTitle.Font, kTitle.TextSize = Color3.fromRGB(255, 255, 255), Enum.Font.GothamBold, 18
+
+local kBox = Instance.new("TextBox", keyFrame)
+kBox.Size, kBox.Position, kBox.PlaceholderText, kBox.Text, kBox.ClearTextOnFocus = UDim2.new(1, -40, 0, 36), UDim2.new(0, 20, 0, 62), "กรอกรหัสผ่าน...", "", false
+style(kBox, Color3.fromRGB(255, 255, 255), Color3.fromRGB(0, 0, 0), 14)
+
+local kBtn = Instance.new("TextButton", keyFrame)
+kBtn.Size, kBtn.Position, kBtn.Text = UDim2.new(1, -40, 0, 36), UDim2.new(0, 20, 0, 110), "ยืนยันรหัส"
+style(kBtn, Color3.fromRGB(255, 255, 255), Color3.fromRGB(0, 0, 0), 15)
+
+local kStat = Instance.new("TextLabel", keyFrame)
+kStat.Size, kStat.Position, kStat.BackgroundTransparency, kStat.Text = UDim2.new(1, -20, 0, 20), UDim2.new(0, 10, 1, -24), 1, ""
+kStat.TextColor3, kStat.Font, kStat.TextSize = Color3.fromRGB(220, 220, 220), Enum.Font.Gotham, 12
+
+local miniBtn = Instance.new("TextButton", gui)
+miniBtn.Size, miniBtn.Position, miniBtn.Text, miniBtn.Visible, miniBtn.Active, miniBtn.Draggable = UDim2.new(0, 120, 0, 38), UDim2.new(0, 20, 0.5, -19), "เปิดเมนู", false, true, true
+style(miniBtn, Color3.fromRGB(15, 15, 15), Color3.fromRGB(255, 255, 255), 15)
+miniBtn.BorderSizePixel = 2
+
+local mainFrame = Instance.new("Frame", gui)
+mainFrame.Size, mainFrame.Position, mainFrame.Visible, mainFrame.Active, mainFrame.Draggable = UDim2.new(0, 430, 0, 450), UDim2.new(0.5, -215, 0.5, -225), false, true, true
+mainFrame.BackgroundColor3, mainFrame.BorderColor3, mainFrame.BorderSizePixel = Color3.fromRGB(12, 12, 12), Color3.fromRGB(255, 255, 255), 2
+
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size, topBar.BackgroundColor3, topBar.BorderSizePixel = UDim2.new(1, 0, 0, 38), Color3.fromRGB(255, 255, 255), 0
+
+local topTitle = Instance.new("TextLabel", topBar)
+topTitle.Size, topTitle.Position, topTitle.BackgroundTransparency, topTitle.Text = UDim2.new(1, -85, 1, 0), UDim2.new(0, 12, 0, 0), 1, "B&W HUB | ALL & MM2"
+topTitle.TextColor3, topTitle.TextXAlignment, topTitle.Font, topTitle.TextSize = Color3.fromRGB(0, 0, 0), Enum.TextXAlignment.Left, Enum.Font.GothamBold, 15
+
+local minBtn = Instance.new("TextButton", topBar)
+minBtn.Size, minBtn.Position, minBtn.Text = UDim2.new(0, 68, 0, 26), UDim2.new(1, -76, 0, 6), "ย่อ GUI"
+style(minBtn, Color3.fromRGB(0, 0, 0), Color3.fromRGB(255, 255, 255), 13)
+
+local scroll = Instance.new("ScrollingFrame", mainFrame)
+scroll.Size, scroll.Position, scroll.BackgroundTransparency, scroll.BorderSizePixel = UDim2.new(1, -20, 1, -48), UDim2.new(0, 10, 0, 44), 1, 0
+scroll.ScrollBarThickness, scroll.CanvasSize = 5, UDim2.new(0, 0, 0, 560)
+Instance.new("UIListLayout", scroll).Padding = UDim.new(0, 7)
+
+local function addLabel(txt)
+	local l = Instance.new("TextLabel", scroll)
+	l.Size, l.Text, l.TextXAlignment = UDim2.new(1, -6, 0, 24), "  " .. txt, Enum.TextXAlignment.Left
+	style(l, Color3.fromRGB(28, 28, 28), Color3.fromRGB(255, 255, 255), 13)
+end
+
+local function addToggle(txt, keyName, onToggle)
+	local b = Instance.new("TextButton", scroll)
+	b.Size, b.Text = UDim2.new(1, -6, 0, 35), txt .. " : OFF"
+	style(b, Color3.fromRGB(20, 20, 20), Color3.fromRGB(255, 255, 255), 14)
+	b.MouseButton1Click:Connect(function()
+		S[keyName] = not S[keyName]
+		b.Text = txt .. (S[keyName] and " : ON" or " : OFF")
+		style(b, S[keyName] and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(20, 20, 20), S[keyName] and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255), 14)
+		if onToggle then onToggle(S[keyName]) end
+	end)
+end
+
+addLabel("GENERAL")
+addToggle("เร่งสปีด (กระโดดแล้วเดิน)", "airSpeed", function(on)
+	if not on and hum(LP) then hum(LP).WalkSpeed = DEF_SPD end
+end)
+
+local spdRow = Instance.new("Frame", scroll)
+spdRow.Size = UDim2.new(1, -6, 0, 35)
+style(spdRow, Color3.fromRGB(18, 18, 18), Color3.fromRGB(255, 255, 255), 13)
+
+local spdBox = Instance.new("TextBox", spdRow)
+spdBox.Size, spdBox.Position, spdBox.Text = UDim2.new(0.42, -8, 1, -8), UDim2.new(0, 6, 0, 4), tostring(BST_SPD)
+style(spdBox, Color3.fromRGB(255, 255, 255), Color3.fromRGB(0, 0, 0), 13)
+
+local setSpd = Instance.new("TextButton", spdRow)
+setSpd.Size, setSpd.Position, setSpd.Text = UDim2.new(0.28, -4, 1, -8), UDim2.new(0.42, 0, 0, 4), "ปรับสปีด"
+style(setSpd, Color3.fromRGB(255, 255, 255), Color3.fromRGB(0, 0, 0), 13)
+
+local rstSpd = Instance.new("TextButton", spdRow)
+rstSpd.Size, rstSpd.Position, rstSpd.Text = UDim2.new(0.30, -8, 1, -8), UDim2.new(0.70, 2, 0, 4), "รีเซ็ตสปีด"
+style(rstSpd, Color3.fromRGB(0, 0, 0), Color3.fromRGB(255, 255, 255), 13)
+
+setSpd.MouseButton1Click:Connect(function()
+	local n = tonumber(spdBox.Text)
+	if n and n > 0 then BST_SPD = n else spdBox.Text = tostring(BST_SPD) end
+end)
+rstSpd.MouseButton1Click:Connect(function()
+	BST_SPD, spdBox.Text = DEF_SPD, tostring(DEF_SPD)
+	if hum(LP) then hum(LP).WalkSpeed = DEF_SPD end
+end)
+
+addToggle("บิน (ลอยขึ้นได้ / กันแบน)", "fly")
+
+local skyBtn = Instance.new("TextButton", scroll)
+skyBtn.Size, skyBtn.Text = UDim2.new(1, -6, 0, 35), "เปลี่ยนท้องฟ้า (1/12): Default"
+style(skyBtn, Color3.fromRGB(255, 255, 255), Color3.fromRGB(0, 0, 0), 14)
+skyBtn.MouseButton1Click:Connect(function()
+	skyIdx = (skyIdx % #SKIES) + 1
+	setSky(SKIES[skyIdx][2])
+	skyBtn.Text = string.format("เปลี่ยนท้องฟ้า (%d/%d): %s", skyIdx, #SKIES, SKIES[skyIdx][1])
+end)
+
+addLabel("MM2")
+addToggle("กันปาด + ห้ามปาดระยะประชิด (โยนมีดได้)", "antiKill")
+addToggle("ดูบทบาท (เหลือง=ผู้บริสุทธิ์, ฟ้า=นายอำเภอ, แดง=ฆาตกร)", "esp")
+addToggle("ปาดทุกคน (วาร์ปไปปาดทุกคน)", "killAll")
+addToggle("อิมล็อคฆาตกร + Shift Lock", "aimlock", function(on)
+	if not on then UIS.MouseBehavior = Enum.MouseBehavior.Default end
+end)
+
+kBtn.MouseButton1Click:Connect(function()
+	if kBox.Text == KEY then
+		kStat.Text = "รหัสถูกต้อง..."
+		task.wait(0.2)
+		keyFrame.Visible, mainFrame.Visible = false, true
+	else
+		kStat.Text = "รหัสไม่ถูกต้อง"
+	end
+end)
+minBtn.MouseButton1Click:Connect(function() mainFrame.Visible, miniBtn.Visible = false, true end)
+miniBtn.MouseButton1Click:Connect(function() miniBtn.Visible, mainFrame.Visible = false, true end)
+
+local function getMurderer()
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= LP and getRole(p) == "Murderer" then
+			local h, r = hum(p), root(p)
+			if h and h.Health > 0 and r then return (char(p) and char(p):FindFirstChild("Head")) or r end
+		end
+	end
+end
+
+RunService.Heartbeat:Connect(function(dt)
+	local h, r = hum(LP), root(LP)
+
+	if S.airSpeed and h then
+		local air = h:GetState() == Enum.HumanoidStateType.Freefall or h:GetState() == Enum.HumanoidStateType.Jumping
+		h.WalkSpeed = (air and h.MoveDirection.Magnitude > 0.05) and BST_SPD or DEF_SPD
+	end
+
+	if S.fly and r and h then
+		local m = h.MoveDirection
+		local y = (UIS:IsKeyDown(Enum.KeyCode.Space) and 1 or 0) - ((UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.C)) and 1 or 0)
+		local dir = Vector3.new(m.X, y, m.Z)
+		if dir.Magnitude > 0 then dir = dir.Unit end
+		r.AssemblyLinearVelocity = dir * FLY_SPD + Vector3.new(0, 2.2, 0)
+		h:ChangeState(Enum.HumanoidStateType.Running)
+	end
+
+	if S.antiKill and r then
+		if h and h.Health > 0 and h.Health < h.MaxHealth then h.Health = h.MaxHealth end
+		if not S.killAll then
+			for _, p in ipairs(Players:GetPlayers()) do
+				if p ~= LP and getRole(p) == "Murderer" and root(p) and (root(p).Position - r.Position).Magnitude < 5.5 then
+					r.CFrame += (r.Position - root(p).Position).Unit * 2.5
+				end
+			end
+		end
+	end
+
+	if S.killAll and r and char(LP) then
+		kaTimer += dt
+		if kaTimer >= 0.12 then
+			kaTimer = 0
+			local tool = char(LP):FindFirstChildOfClass("Tool") or (LP:FindFirstChild("Backpack") and LP.Backpack:FindFirstChild("Knife"))
+			if tool and tool.Parent ~= char(LP) and h then h:EquipTool(tool) end
+			for _, p in ipairs(Players:GetPlayers()) do
+				if p ~= LP and root(p) and hum(p) and hum(p).Health > 0 then
+					r.CFrame = root(p).CFrame * CFrame.new(0, 0, 2)
+					if tool then tool:Activate() end
+					break
+				end
+			end
+		end
+	end
+
+	if not S.esp then
+		for p, g in pairs(espMap) do g:Destroy() espMap[p] = nil end
+	else
+		for _, p in ipairs(Players:GetPlayers()) do
+			local head = p ~= LP and char(p) and char(p):FindFirstChild("Head")
+			if head then
+				local g = espMap[p]
+				if not g then
+					g = Instance.new("BillboardGui", gui)
+					g.Adornee, g.Size, g.StudsOffset, g.AlwaysOnTop = head, UDim2.new(0, 140, 0, 30), Vector3.new(0, 2.5, 0), true
+					local l = Instance.new("TextLabel", g)
+					l.Name, l.Size, l.BackgroundColor3, l.BackgroundTransparency, l.BorderSizePixel = "L", UDim2.new(1, 0, 1, 0), Color3.fromRGB(0, 0, 0), 0.25, 0
+					l.Font, l.TextSize = Enum.Font.GothamBold, 13
+					espMap[p] = g
+				end
+				local role, col = getRole(p)
+				g.L.Text, g.L.TextColor3 = p.Name .. " [" .. role .. "]", col
+			elseif espMap[p] then
+				espMap[p]:Destroy() espMap[p] = nil
+			end
+		end
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if not S.aimlock then return end
+	local t = getMurderer()
+	if not t then return end
+	UIS.MouseBehavior = Enum.MouseBehavior.LockCenter
+	local r = root(LP)
+	if r then r.CFrame = CFrame.lookAt(r.Position, Vector3.new(t.Position.X, r.Position.Y, t.Position.Z)) end
+	Cam.CFrame = CFrame.lookAt(Cam.CFrame.Position, t.Position)
+end)
